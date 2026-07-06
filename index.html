@@ -47,6 +47,7 @@
   .evtTime { color: #6db3f2; min-width: 104px; font-variant-numeric: tabular-nums; }
   .evtTitle { -webkit-flex: 1; flex: 1; }
   .calChip { font-size: 12px; color: #8d97a0; margin-left: 8px; white-space: nowrap; }
+  .evtLoc { font-size: 14px; color: #8d97a0; margin-top: 2px; }
   .busRoute {
     display: -webkit-flex; display: flex;
     -webkit-align-items: center; align-items: center;
@@ -142,7 +143,7 @@
   </div>
   <div class="weatherBox">
     <div id="temp">--°C</div>
-    <div id="wxMeta">Hong Kong Observatory</div>
+    <div id="wxMeta">香港天文台</div>
     <div id="warnings"></div>
   </div>
 </div>
@@ -228,7 +229,7 @@ function pad(n) { return n < 10 ? '0' + n : '' + n; }
 
 /* ---------- Config ---------- */
 function loadCfg() {
-  var cfg = { calUrl: '', district: 'Hong Kong Observatory', routes: [], countdowns: [] };
+  var cfg = { calUrl: '', district: '香港天文台', routes: [], countdowns: [] };
   try {
     var raw = localStorage.getItem('dashCfg');
     if (raw) {
@@ -263,7 +264,7 @@ function tickClock() {
 /* ---------- Weather (English) ---------- */
 var lastTemps = [];
 function loadWeather() {
-  jget(HKO + '?dataType=rhrread&lang=en').then(function (d) {
+  jget(HKO + '?dataType=rhrread&lang=tc').then(function (d) {
     if (d.temperature && d.temperature.data) {
       lastTemps = d.temperature.data;
       var hit = null;
@@ -272,13 +273,13 @@ function loadWeather() {
       document.getElementById('temp').textContent = hit.value + '°C';
       var hum = '';
       if (d.humidity && d.humidity.data && d.humidity.data[0]) {
-        hum = ' · Humidity ' + d.humidity.data[0].value + '%';
+        hum = ' · 濕度 ' + d.humidity.data[0].value + '%';
       }
       document.getElementById('wxMeta').textContent = hit.place + hum;
       fillDistricts();
     }
   }).catch(function () {});
-  jget(HKO + '?dataType=warnsum&lang=en').then(function (d) {
+  jget(HKO + '?dataType=warnsum&lang=tc').then(function (d) {
     var box = document.getElementById('warnings');
     box.innerHTML = '';
     Object.keys(d || {}).forEach(function (k) {
@@ -329,6 +330,12 @@ function renderEvents(box, events) {
     var tt = document.createElement('div');
     tt.className = 'evtTitle';
     tt.textContent = e.title || '(No title)';
+    if (e.location) {
+      var loc = document.createElement('div');
+      loc.className = 'evtLoc';
+      loc.textContent = '📍 ' + e.location;
+      tt.appendChild(loc);
+    }
     row.appendChild(t); row.appendChild(tt);
     if (e.cal) {
       var chip = document.createElement('span');
@@ -482,8 +489,8 @@ function loadEta() {
     row.innerHTML =
       '<div class="busNoWrap"><div class="busNo">' + rt.route + '</div>' +
       '<span class="opTag op-' + rt.type + '">' + opLabel + '</span></div>' +
-      '<div class="busInfo"><div class="busDest">to ' + rt.dest + '</div>' +
-      '<div class="busStop">' + rt.stopName + '</div></div>' +
+      '<div class="busInfo"><div class="busDest">' + (rt.destTc ? '往 ' + rt.destTc + ' · ' : 'to ') + (rt.dest || '') + '</div>' +
+      '<div class="busStop">' + (rt.stopNameTc ? rt.stopNameTc + ' ' : '') + (rt.stopName || '') + '</div></div>' +
       '<div class="busEta"><div class="etaMain">…</div><div class="etaNext"></div></div>';
     box.appendChild(row);
 
@@ -554,7 +561,8 @@ function renderSavedRoutes() {
     d.className = 'savedItem';
     var span = document.createElement('span');
     var opLabel = rt.type === 'JOINT' ? 'KMB+CTB' : rt.type;
-    span.textContent = '[' + opLabel + '] ' + rt.route + ' to ' + rt.dest + ' @ ' + rt.stopName;
+    span.textContent = '[' + opLabel + '] ' + rt.route + ' 往 ' + (rt.destTc ? rt.destTc + ' ' : '') + rt.dest +
+      ' @ ' + (rt.stopNameTc ? rt.stopNameTc + ' ' : '') + rt.stopName;
     var del = document.createElement('button');
     del.className = 'btn red';
     del.textContent = 'Delete';
@@ -651,25 +659,26 @@ document.getElementById('searchRouteBtn').onclick = function () {
     /* KMB directions (labelled joint when Citybus also runs the route) */
     kmb.forEach(function (m) {
       var opTxt = isJoint ? 'KMB + CTB' : 'KMB';
-      var label = '[' + opTxt + '] ' + route + ': ' + m.orig_en + ' → ' + m.dest_en +
+      var label = '[' + opTxt + '] ' + route + ': ' + m.orig_tc + ' → ' + m.dest_tc +
+        ' (' + m.orig_en + ' → ' + m.dest_en + ')' +
         (m.service_type !== '1' ? ' (special ' + m.service_type + ')' : '');
       addBtn(label, function () { pickKmbDirection(route, m, isJoint ? ctb : null); });
     });
 
     /* Citybus-only directions */
     if (ctb && !kmb.length) {
-      addBtn('[CTB] ' + route + ': ' + ctb.orig_en + ' → ' + ctb.dest_en, function () {
-        pickCtbDirection(route, 'outbound', 'O', ctb.dest_en);
+      addBtn('[CTB] ' + route + ': ' + ctb.orig_tc + ' → ' + ctb.dest_tc + ' (' + ctb.orig_en + ' → ' + ctb.dest_en + ')', function () {
+        pickCtbDirection(route, 'outbound', 'O', ctb.dest_en, ctb.dest_tc);
       });
-      addBtn('[CTB] ' + route + ': ' + ctb.dest_en + ' → ' + ctb.orig_en, function () {
-        pickCtbDirection(route, 'inbound', 'I', ctb.orig_en);
+      addBtn('[CTB] ' + route + ': ' + ctb.dest_tc + ' → ' + ctb.orig_tc + ' (' + ctb.dest_en + ' → ' + ctb.orig_en + ')', function () {
+        pickCtbDirection(route, 'inbound', 'I', ctb.orig_en, ctb.orig_tc);
       });
     }
 
     /* Green minibus */
     gmb.forEach(function (g) {
       (g.directions || []).forEach(function (dr) {
-        addBtn('[Minibus ' + g._region + '] ' + route + ': ' + dr.orig_en + ' → ' + dr.dest_en, function () {
+        addBtn('[Minibus ' + g._region + '] ' + route + ': ' + dr.orig_tc + ' → ' + dr.dest_tc + ' (' + dr.orig_en + ' → ' + dr.dest_en + ')', function () {
           pickGmbDirection(route, g.route_id, dr);
         });
       });
@@ -700,6 +709,7 @@ function pickKmbDirection(route, m, ctbInfo) {
         return {
           id: s.stop, seq: s.seq,
           name: (info.data && info.data.name_en) || s.stop,
+          nameTc: (info.data && info.data.name_tc) || '',
           lat: info.data && info.data.lat, lng: info.data && info.data.long
         };
       });
@@ -708,7 +718,7 @@ function pickKmbDirection(route, m, ctbInfo) {
       var sel = document.createElement('select');
       named.forEach(function (st) {
         var o = document.createElement('option');
-        o.value = st.id; o.textContent = st.seq + '. ' + st.name;
+        o.value = st.id; o.textContent = st.seq + '. ' + (st.nameTc ? st.nameTc + ' ' : '') + st.name;
         sel.appendChild(o);
       });
       var add = document.createElement('button');
@@ -722,7 +732,8 @@ function pickKmbDirection(route, m, ctbInfo) {
         if (!ctbInfo) {
           CFG.routes.push({
             type: 'KMB', route: route, dir: m.bound, serviceType: m.service_type,
-            dest: m.dest_en, stopId: chosen.id, stopName: chosen.name
+            dest: m.dest_en, destTc: m.dest_tc,
+            stopId: chosen.id, stopName: chosen.name, stopNameTc: chosen.nameTc
           });
           finishAdd(route, m.dest_en);
         } else {
@@ -730,14 +741,16 @@ function pickKmbDirection(route, m, ctbInfo) {
           findCtbMatch(route, chosen).then(function (match) {
             if (match) {
               CFG.routes.push({
-                type: 'JOINT', route: route, dest: m.dest_en, stopName: chosen.name,
+                type: 'JOINT', route: route, dest: m.dest_en, destTc: m.dest_tc,
+                stopName: chosen.name, stopNameTc: chosen.nameTc,
                 kmb: { route: route, dir: m.bound, serviceType: m.service_type, stopId: chosen.id },
                 ctb: { route: route, dir: match.dir, stopId: match.id }
               });
             } else {
               CFG.routes.push({
                 type: 'KMB', route: route, dir: m.bound, serviceType: m.service_type,
-                dest: m.dest_en, stopId: chosen.id, stopName: chosen.name
+                dest: m.dest_en, destTc: m.dest_tc,
+                stopId: chosen.id, stopName: chosen.name, stopNameTc: chosen.nameTc
               });
             }
             finishAdd(route, m.dest_en);
@@ -775,7 +788,7 @@ function findCtbMatch(route, kmbStop) {
 }
 
 /* Citybus-only direction chosen */
-function pickCtbDirection(route, boundWord, dirLetter, destEn) {
+function pickCtbDirection(route, boundWord, dirLetter, destEn, destTc) {
   var stopArea = document.getElementById('stopArea');
   stopArea.innerHTML = '<div class="small">Loading stops…</div>';
   jget(CTB + '/route-stop/CTB/' + route + '/' + boundWord).then(function (d) {
@@ -783,14 +796,18 @@ function pickCtbDirection(route, boundWord, dirLetter, destEn) {
     if (!stops.length) { stopArea.innerHTML = '<div class="small">No stops found.</div>'; return; }
     return Promise.all(stops.map(function (s) {
       return jget(CTB + '/stop/' + s.stop).then(function (info) {
-        return { id: s.stop, seq: s.seq, name: info.data.name_en || s.stop };
+        return {
+          id: s.stop, seq: s.seq,
+          name: info.data.name_en || s.stop,
+          nameTc: info.data.name_tc || ''
+        };
       });
     })).then(function (named) {
       stopArea.innerHTML = '<div class="small">Choose your stop:</div>';
       var sel = document.createElement('select');
       named.forEach(function (st) {
         var o = document.createElement('option');
-        o.value = st.id; o.textContent = st.seq + '. ' + st.name;
+        o.value = st.id; o.textContent = st.seq + '. ' + (st.nameTc ? st.nameTc + ' ' : '') + st.name;
         sel.appendChild(o);
       });
       var add = document.createElement('button');
@@ -802,7 +819,8 @@ function pickCtbDirection(route, boundWord, dirLetter, destEn) {
         if (!chosen) return;
         CFG.routes.push({
           type: 'CTB', route: route, dir: dirLetter,
-          dest: destEn, stopId: chosen.id, stopName: chosen.name
+          dest: destEn, destTc: destTc || '',
+          stopId: chosen.id, stopName: chosen.name, stopNameTc: chosen.nameTc
         });
         finishAdd(route, destEn);
       };
@@ -826,7 +844,7 @@ function pickGmbDirection(route, routeId, dr) {
     stops.forEach(function (st) {
       var o = document.createElement('option');
       o.value = st.stop_seq;
-      o.textContent = st.stop_seq + '. ' + (st.name_en || st.name_tc || st.stop_id);
+      o.textContent = st.stop_seq + '. ' + (st.name_tc ? st.name_tc + ' ' : '') + (st.name_en || '');
       sel.appendChild(o);
     });
     var add = document.createElement('button');
@@ -838,8 +856,10 @@ function pickGmbDirection(route, routeId, dr) {
       if (!chosen) return;
       CFG.routes.push({
         type: 'GMB', route: route, routeId: routeId, routeSeq: dr.route_seq,
-        dest: dr.dest_en, stopSeq: chosen.stop_seq,
-        stopName: chosen.name_en || chosen.name_tc || ('Stop ' + chosen.stop_seq)
+        dest: dr.dest_en, destTc: dr.dest_tc || '',
+        stopSeq: chosen.stop_seq,
+        stopName: chosen.name_en || ('Stop ' + chosen.stop_seq),
+        stopNameTc: chosen.name_tc || ''
       });
       finishAdd(route, dr.dest_en);
     };
