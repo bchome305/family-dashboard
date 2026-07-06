@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>屋企 Dashboard</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body {
+    background: #101418;
+    color: #f2f4f6;
+    font-family: -apple-system, "PingFang HK", "PingFang TC", "Helvetica Neue", sans-serif;
+    padding: 20px;
+    overflow-x: hidden;
+  }
+  .top {
+    display: -webkit-flex; display: flex;
+    -webkit-justify-content: space-between; justify-content: space-between;
+    -webkit-align-items: flex-start; align-items: flex-start;
+    margin-bottom: 18px;
+  }
+  #clock { font-size: 64px; font-weight: 300; letter-spacing: 2px; line-height: 1; }
+  #dateLine { font-size: 22px; color: #9aa4ad; margin-top: 8px; }
+  .weatherBox { text-align: right; }
+  #temp { font-size: 52px; font-weight: 300; line-height: 1; }
+  #wxMeta { font-size: 17px; color: #9aa4ad; margin-top: 6px; }
+  #warnings { margin-top: 8px; }
+  .warnTag {
+    display: inline-block; background: #5a3a00; color: #ffcf70;
+    font-size: 15px; padding: 3px 10px; border-radius: 8px; margin: 2px 0 0 6px;
+  }
+  .grid {
+    display: -webkit-flex; display: flex;
+    width: 100%;
+  }
+  .col { -webkit-flex: 1; flex: 1; min-width: 0; }
+  .col + .col { margin-left: 16px; }
+  .card {
+    background: #1a2028; border-radius: 16px; padding: 16px 18px;
+    margin-bottom: 16px;
+  }
+  .cardTitle {
+    font-size: 15px; color: #8d97a0; margin-bottom: 10px;
+    text-transform: none; letter-spacing: 1px;
+  }
+  .evtRow {
+    display: -webkit-flex; display: flex;
+    padding: 9px 0; border-bottom: 1px solid #2a323c; font-size: 21px;
+  }
+  .evtRow:last-child { border-bottom: none; }
+  .evtTime { color: #6db3f2; min-width: 118px; font-variant-numeric: tabular-nums; }
+  .evtTitle { -webkit-flex: 1; flex: 1; }
+  .busRoute {
+    display: -webkit-flex; display: flex;
+    -webkit-align-items: center; align-items: center;
+    padding: 10px 0; border-bottom: 1px solid #2a323c;
+  }
+  .busRoute:last-child { border-bottom: none; }
+  .busNo {
+    font-size: 26px; font-weight: 600; min-width: 90px; color: #ffd166;
+  }
+  .busInfo { -webkit-flex: 1; flex: 1; min-width: 0; }
+  .busStop { font-size: 15px; color: #8d97a0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .busDest { font-size: 17px; }
+  .busEta { text-align: right; min-width: 150px; font-variant-numeric: tabular-nums; }
+  .etaMain { font-size: 30px; color: #7ee08a; font-weight: 500; }
+  .etaNext { font-size: 15px; color: #8d97a0; margin-top: 2px; }
+  .hint { font-size: 17px; color: #6b747d; padding: 8px 0; line-height: 1.6; }
+  .gear {
+    position: fixed; right: 14px; bottom: 14px;
+    width: 46px; height: 46px; border-radius: 50%;
+    background: #1a2028; color: #8d97a0; border: 1px solid #2a323c;
+    font-size: 22px; z-index: 50;
+  }
+  /* ---------- 設定面板 ---------- */
+  #settings {
+    display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(8,10,13,0.96); z-index: 100; overflow-y: auto;
+    -webkit-overflow-scrolling: touch; padding: 24px;
+  }
+  #settings h2 { font-size: 24px; font-weight: 500; margin-bottom: 18px; }
+  #settings h3 { font-size: 17px; font-weight: 500; color: #9aa4ad; margin: 22px 0 8px; }
+  #settings input[type=text], #settings select {
+    width: 100%; font-size: 18px; padding: 12px; border-radius: 10px;
+    border: 1px solid #3a444f; background: #1a2028; color: #f2f4f6;
+    -webkit-appearance: none; appearance: none;
+  }
+  .btn {
+    font-size: 17px; padding: 12px 20px; border-radius: 10px; border: none;
+    background: #2b6cb0; color: #fff; margin-top: 12px;
+  }
+  .btn.gray { background: #3a444f; }
+  .btn.red { background: #8b3a3a; }
+  .savedRoute {
+    display: -webkit-flex; display: flex;
+    -webkit-justify-content: space-between; justify-content: space-between;
+    -webkit-align-items: center; align-items: center;
+    background: #1a2028; border-radius: 10px; padding: 10px 14px; margin-top: 8px;
+    font-size: 17px;
+  }
+  .dirBtn {
+    display: block; width: 100%; text-align: left;
+    font-size: 17px; padding: 12px; border-radius: 10px; margin-top: 8px;
+    border: 1px solid #3a444f; background: #1a2028; color: #f2f4f6;
+  }
+  .dirBtn.sel { border-color: #6db3f2; background: #1e2f42; }
+  .small { font-size: 14px; color: #6b747d; margin-top: 6px; line-height: 1.5; }
+  .settingsFoot { margin-top: 28px; padding-bottom: 40px; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <div>
+    <div id="clock">--:--</div>
+    <div id="dateLine">載入中…</div>
+  </div>
+  <div class="weatherBox">
+    <div id="temp">--°C</div>
+    <div id="wxMeta">香港天文台</div>
+    <div id="warnings"></div>
+  </div>
+</div>
+
+<div class="grid">
+  <div class="col">
+    <div class="card">
+      <div class="cardTitle">今日行程</div>
+      <div id="calList"><div class="hint">請按右下角 ⚙ 貼上 Google Apps Script 網址</div></div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="card">
+      <div class="cardTitle">巴士到站(九巴)</div>
+      <div id="busList"><div class="hint">請按右下角 ⚙ 加入巴士路線</div></div>
+    </div>
+  </div>
+</div>
+
+<button class="gear" id="gearBtn">⚙</button>
+
+<!-- ==================== 設定面板 ==================== -->
+<div id="settings">
+  <h2>設定</h2>
+
+  <h3>Google Calendar 連結(Apps Script 網址)</h3>
+  <input type="text" id="calUrlInput" placeholder="https://script.google.com/macros/s/…/exec">
+  <div class="small">跟教學喺 Google Apps Script 部署後,將條 /exec 網址貼喺度。</div>
+
+  <h3>天氣顯示地區</h3>
+  <select id="districtSel"><option>載入中…</option></select>
+
+  <h3>已加入嘅巴士路線</h3>
+  <div id="savedRoutes"><div class="small">未有路線</div></div>
+
+  <h3>新增巴士路線</h3>
+  <input type="text" id="routeInput" placeholder="輸入路線號碼,例如 296C">
+  <button class="btn" id="searchRouteBtn">搜尋路線</button>
+  <div id="dirArea"></div>
+  <div id="stopArea"></div>
+
+  <div class="settingsFoot">
+    <button class="btn" id="saveBtn">儲存並返回</button>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   屋企 Dashboard — 天氣 + 時鐘 + Google Calendar + 九巴 ETA
+   所有設定儲存喺 localStorage,唔使改 code
+   ============================================================ */
+
+var KMB = 'https://data.etabus.gov.hk/v1/transport/kmb';
+var HKO = 'https://data.weather.gov.hk/weatherAPI/opendata/weather.php';
+
+/* ---------- 讀取 / 儲存設定 ---------- */
+function loadCfg() {
+  try {
+    var raw = localStorage.getItem('dashCfg');
+    if (raw) return JSON.parse(raw);
+  } catch (e) {}
+  return { calUrl: '', district: '香港天文台', routes: [] };
+}
+function saveCfg() {
+  try { localStorage.setItem('dashCfg', JSON.stringify(CFG)); } catch (e) {}
+}
+var CFG = loadCfg();
+
+/* ---------- 時鐘 ---------- */
+var WEEK = ['日','一','二','三','四','五','六'];
+function pad(n) { return n < 10 ? '0' + n : '' + n; }
+function tickClock() {
+  var d = new Date();
+  document.getElementById('clock').textContent = pad(d.getHours()) + ':' + pad(d.getMinutes());
+  document.getElementById('dateLine').textContent =
+    (d.getMonth() + 1) + '月' + d.getDate() + '日 星期' + WEEK[d.getDay()];
+  /* 每日凌晨 4 點自動重新載入,保持長開穩定 */
+  if (d.getHours() === 4 && d.getMinutes() === 0 && d.getSeconds() < 2) {
+    location.reload();
+  }
+}
+
+/* ---------- 天文台天氣 ---------- */
+var lastTemps = [];
+function loadWeather() {
+  fetch(HKO + '?dataType=rhrread&lang=tc')
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (d.temperature && d.temperature.data) {
+        lastTemps = d.temperature.data;
+        var hit = null;
+        lastTemps.forEach(function (t) { if (t.place === CFG.district) hit = t; });
+        if (!hit) hit = lastTemps[0];
+        document.getElementById('temp').textContent = hit.value + '°C';
+        var hum = '';
+        if (d.humidity && d.humidity.data && d.humidity.data[0]) {
+          hum = ' · 濕度 ' + d.humidity.data[0].value + '%';
+        }
+        document.getElementById('wxMeta').textContent = hit.place + hum;
+        fillDistricts();
+      }
+    })
+    .catch(function () {});
+  fetch(HKO + '?dataType=warnsum&lang=tc')
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      var box = document.getElementById('warnings');
+      box.innerHTML = '';
+      Object.keys(d || {}).forEach(function (k) {
+        var w = d[k];
+        if (w && w.name && w.actionType !== 'CANCEL') {
+          var s = document.createElement('span');
+          s.className = 'warnTag';
+          s.textContent = w.name;
+          box.appendChild(s);
+        }
+      });
+    })
+    .catch(function () {});
+}
+function fillDistricts() {
+  var sel = document.getElementById('districtSel');
+  if (!lastTemps.length) return;
+  sel.innerHTML = '';
+  lastTemps.forEach(function (t) {
+    var o = document.createElement('option');
+    o.value = t.place; o.textContent = t.place;
+    if (t.place === CFG.district) o.selected = true;
+    sel.appendChild(o);
+  });
+}
+
+/* ---------- Google Calendar(經 Apps Script) ---------- */
+function loadCal() {
+  var box = document.getElementById('calList');
+  if (!CFG.calUrl) {
+    box.innerHTML = '<div class="hint">請按右下角 ⚙ 貼上 Google Apps Script 網址</div>';
+    return;
+  }
+  fetch(CFG.calUrl)
+    .then(function (r) { return r.json(); })
+    .then(function (events) {
+      box.innerHTML = '';
+      if (!events.length) {
+        box.innerHTML = '<div class="hint">今日冇行程 🎉</div>';
+        return;
+      }
+      events.forEach(function (e) {
+        var row = document.createElement('div');
+        row.className = 'evtRow';
+        var t = document.createElement('div');
+        t.className = 'evtTime';
+        if (e.allDay) {
+          t.textContent = '全日';
+        } else {
+          var s = new Date(e.start);
+          t.textContent = pad(s.getHours()) + ':' + pad(s.getMinutes());
+        }
+        var tt = document.createElement('div');
+        tt.className = 'evtTitle';
+        tt.textContent = e.title || '(無標題)';
+        row.appendChild(t); row.appendChild(tt);
+        box.appendChild(row);
+      });
+    })
+    .catch(function () {
+      box.innerHTML = '<div class="hint">未能連接行事曆,請檢查網址或網絡</div>';
+    });
+}
+
+/* ---------- 九巴 ETA ---------- */
+function etaMins(iso) {
+  if (!iso) return null;
+  var diff = Math.round((new Date(iso).getTime() - Date.now()) / 60000);
+  return diff;
+}
+function loadEta() {
+  var box = document.getElementById('busList');
+  if (!CFG.routes.length) {
+    box.innerHTML = '<div class="hint">請按右下角 ⚙ 加入巴士路線</div>';
+    return;
+  }
+  box.innerHTML = '';
+  CFG.routes.forEach(function (rt) {
+    var row = document.createElement('div');
+    row.className = 'busRoute';
+    row.innerHTML =
+      '<div class="busNo">' + rt.route + '</div>' +
+      '<div class="busInfo"><div class="busDest">往 ' + rt.dest + '</div>' +
+      '<div class="busStop">' + rt.stopName + '</div></div>' +
+      '<div class="busEta"><div class="etaMain">載入中</div><div class="etaNext"></div></div>';
+    box.appendChild(row);
+    fetch(KMB + '/eta/' + rt.stopId + '/' + rt.route + '/' + rt.serviceType)
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var list = (d.data || []).filter(function (x) { return x.dir === rt.dir && x.eta; });
+        var mainEl = row.querySelector('.etaMain');
+        var nextEl = row.querySelector('.etaNext');
+        if (!list.length) {
+          mainEl.textContent = '暫無班次';
+          mainEl.style.color = '#8d97a0';
+          return;
+        }
+        var m0 = etaMins(list[0].eta);
+        mainEl.style.color = '#7ee08a';
+        mainEl.textContent = (m0 <= 0) ? '即將到站' : m0 + ' 分鐘';
+        var nexts = [];
+        list.slice(1, 3).forEach(function (x) {
+          var m = etaMins(x.eta);
+          if (m !== null && m > 0) nexts.push(m + '分');
+        });
+        nextEl.textContent = nexts.length ? '之後:' + nexts.join(' · ') : '';
+      })
+      .catch(function () {
+        row.querySelector('.etaMain').textContent = '讀取失敗';
+      });
+  });
+}
+
+/* ---------- 設定面板 ---------- */
+var pendingRoute = null; /* 搜尋中嘅路線資料 */
+
+document.getElementById('gearBtn').onclick = function () {
+  document.getElementById('calUrlInput').value = CFG.calUrl;
+  renderSavedRoutes();
+  fillDistricts();
+  document.getElementById('settings').style.display = 'block';
+};
+document.getElementById('saveBtn').onclick = function () {
+  CFG.calUrl = document.getElementById('calUrlInput').value.replace(/\s/g, '');
+  var sel = document.getElementById('districtSel');
+  if (sel.value && sel.value !== '載入中…') CFG.district = sel.value;
+  saveCfg();
+  document.getElementById('settings').style.display = 'none';
+  document.getElementById('dirArea').innerHTML = '';
+  document.getElementById('stopArea').innerHTML = '';
+  document.getElementById('routeInput').value = '';
+  loadWeather(); loadCal(); loadEta();
+};
+
+function renderSavedRoutes() {
+  var box = document.getElementById('savedRoutes');
+  if (!CFG.routes.length) {
+    box.innerHTML = '<div class="small">未有路線</div>';
+    return;
+  }
+  box.innerHTML = '';
+  CFG.routes.forEach(function (rt, i) {
+    var d = document.createElement('div');
+    d.className = 'savedRoute';
+    var span = document.createElement('span');
+    span.textContent = rt.route + ' 往' + rt.dest + ' @ ' + rt.stopName;
+    var del = document.createElement('button');
+    del.className = 'btn red';
+    del.style.marginTop = '0';
+    del.textContent = '刪除';
+    del.onclick = function () {
+      CFG.routes.splice(i, 1);
+      saveCfg();
+      renderSavedRoutes();
+    };
+    d.appendChild(span); d.appendChild(del);
+    box.appendChild(d);
+  });
+}
+
+/* 步驟 1:搜尋路線,顯示兩個方向 */
+document.getElementById('searchRouteBtn').onclick = function () {
+  var route = document.getElementById('routeInput').value.replace(/\s/g, '').toUpperCase();
+  if (!route) return;
+  var dirArea = document.getElementById('dirArea');
+  var stopArea = document.getElementById('stopArea');
+  dirArea.innerHTML = '<div class="small">搜尋中…</div>';
+  stopArea.innerHTML = '';
+  pendingRoute = null;
+
+  fetch(KMB + '/route/')
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      var matches = (d.data || []).filter(function (x) { return x.route === route; });
+      if (!matches.length) {
+        dirArea.innerHTML = '<div class="small">搵唔到路線 ' + route + '(暫時只支援九巴/龍運)</div>';
+        return;
+      }
+      dirArea.innerHTML = '<div class="small">揀方向:</div>';
+      matches.forEach(function (m) {
+        var b = document.createElement('button');
+        b.className = 'dirBtn';
+        b.textContent = route + ':' + m.orig_tc + ' → ' + m.dest_tc +
+          (m.service_type !== '1' ? '(特別班次 ' + m.service_type + ')' : '');
+        b.onclick = function () {
+          var all = dirArea.querySelectorAll('.dirBtn');
+          for (var i = 0; i < all.length; i++) all[i].className = 'dirBtn';
+          b.className = 'dirBtn sel';
+          pickDirection(route, m);
+        };
+        dirArea.appendChild(b);
+      });
+    })
+    .catch(function () {
+      dirArea.innerHTML = '<div class="small">網絡錯誤,請再試</div>';
+    });
+};
+
+/* 步驟 2:揀咗方向,載入沿線車站 */
+function pickDirection(route, m) {
+  var stopArea = document.getElementById('stopArea');
+  stopArea.innerHTML = '<div class="small">載入車站中…</div>';
+  var boundWord = (m.bound === 'O') ? 'outbound' : 'inbound';
+
+  fetch(KMB + '/route-stop/' + route + '/' + boundWord + '/' + m.service_type)
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      var stops = d.data || [];
+      if (!stops.length) {
+        stopArea.innerHTML = '<div class="small">呢個方向冇車站資料</div>';
+        return;
+      }
+      /* 逐個車站攞名 */
+      return Promise.all(stops.map(function (s) {
+        return fetch(KMB + '/stop/' + s.stop)
+          .then(function (r) { return r.json(); })
+          .then(function (info) {
+            return { id: s.stop, seq: s.seq, name: (info.data && info.data.name_tc) || s.stop };
+          });
+      })).then(function (named) {
+        stopArea.innerHTML = '<div class="small">揀你要等車嘅車站:</div>';
+        var sel = document.createElement('select');
+        named.forEach(function (st) {
+          var o = document.createElement('option');
+          o.value = st.id;
+          o.textContent = st.seq + '. ' + st.name;
+          sel.appendChild(o);
+        });
+        var add = document.createElement('button');
+        add.className = 'btn';
+        add.textContent = '加入呢條路線';
+        add.onclick = function () {
+          var chosen = null;
+          named.forEach(function (st) { if (st.id === sel.value) chosen = st; });
+          if (!chosen) return;
+          CFG.routes.push({
+            route: route,
+            dir: m.bound,
+            serviceType: m.service_type,
+            dest: m.dest_tc,
+            stopId: chosen.id,
+            stopName: chosen.name
+          });
+          saveCfg();
+          renderSavedRoutes();
+          stopArea.innerHTML = '<div class="small">✅ 已加入 ' + route + ' 往' + m.dest_tc + '</div>';
+          document.getElementById('dirArea').innerHTML = '';
+          document.getElementById('routeInput').value = '';
+        };
+        stopArea.appendChild(sel);
+        stopArea.appendChild(add);
+      });
+    })
+    .catch(function () {
+      stopArea.innerHTML = '<div class="small">載入車站失敗,請再試</div>';
+    });
+}
+
+/* ---------- 定時更新 ---------- */
+tickClock();
+loadWeather();
+loadCal();
+loadEta();
+setInterval(tickClock, 1000);              /* 時鐘:每秒 */
+setInterval(loadEta, 30 * 1000);           /* 巴士:每 30 秒 */
+setInterval(loadCal, 5 * 60 * 1000);       /* 行事曆:每 5 分鐘 */
+setInterval(loadWeather, 10 * 60 * 1000);  /* 天氣:每 10 分鐘 */
+</script>
+</body>
+</html>
