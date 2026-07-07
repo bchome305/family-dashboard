@@ -33,6 +33,9 @@
     display: inline-block; background: #5a3a00; color: #ffcf70;
     font-size: 14px; padding: 3px 10px; border-radius: 8px; margin: 2px 0 0 6px;
   }
+  .warnTag.red { background: #5a1414; color: #ff9d9d; }
+  .warnTag.black { background: #000; color: #fff; border: 1px solid #4a4a4a; }
+  .warnTag.blue { background: #12324a; color: #8fc9ff; }
   .grid { display: -webkit-flex; display: flex; width: 100%; }
   .col { -webkit-flex: 1; flex: 1; min-width: 0; }
   .col + .col { margin-left: 16px; }
@@ -279,17 +282,39 @@ function loadWeather() {
       fillDistricts();
     }
   }).catch(function () {});
+var WARN_MAP = {
+  WRAINA: { label: '黃色暴雨警告', cls: 'amber', icon: '🌧' },
+  WRAINR: { label: '紅色暴雨警告', cls: 'red', icon: '🌧' },
+  WRAINB: { label: '黑色暴雨警告', cls: 'black', icon: '🌧' },
+  TC1:  { label: '一號風球', cls: 'amber', icon: '🌀' },
+  TC3:  { label: '三號風球', cls: 'amber', icon: '🌀' },
+  TC8NE: { label: '八號風球', cls: 'red', icon: '🌀' },
+  TC8NW: { label: '八號風球', cls: 'red', icon: '🌀' },
+  TC8SE: { label: '八號風球', cls: 'red', icon: '🌀' },
+  TC8SW: { label: '八號風球', cls: 'red', icon: '🌀' },
+  TC9:  { label: '九號風球', cls: 'red', icon: '🌀' },
+  TC10: { label: '十號風球', cls: 'black', icon: '🌀' },
+  WTS:  { label: '雷暴警告', cls: 'amber', icon: '⚡' },
+  WHOT: { label: '酷熱天氣警告', cls: 'red', icon: '🔥' },
+  WCOLD: { label: '寒冷天氣警告', cls: 'blue', icon: '❄️' },
+  WFROST: { label: '霜凍警告', cls: 'blue', icon: '❄️' },
+  WMSGNL: { label: '強烈季候風信號', cls: 'amber', icon: '💨' },
+  WFNTSA: { label: '新界北部水浸特別報告', cls: 'blue', icon: '🌊' },
+  WL:   { label: '山泥傾瀉警告', cls: 'amber', icon: '⛰' },
+  WFIREY: { label: '黃色火災危險警告', cls: 'amber', icon: '🔥' },
+  WFIRER: { label: '紅色火災危險警告', cls: 'red', icon: '🔥' }
+};
   jget(HKO + '?dataType=warnsum&lang=tc').then(function (d) {
     var box = document.getElementById('warnings');
     box.innerHTML = '';
     Object.keys(d || {}).forEach(function (k) {
       var w = d[k];
-      if (w && w.name && w.actionType !== 'CANCEL') {
-        var s = document.createElement('span');
-        s.className = 'warnTag';
-        s.textContent = w.name;
-        box.appendChild(s);
-      }
+      if (!w || !w.name || w.actionType === 'CANCEL') return;
+      var info = WARN_MAP[w.code] || WARN_MAP[k] || { label: w.name, cls: 'amber', icon: '⚠️' };
+      var s = document.createElement('span');
+      s.className = 'warnTag ' + info.cls;
+      s.textContent = info.icon + ' ' + info.label;
+      box.appendChild(s);
     });
   }).catch(function () {});
 }
