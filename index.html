@@ -130,6 +130,12 @@
   }
   .dirBtn.sel { border-color: #6db3f2; background: #1e2f42; }
   .small { font-size: 14px; color: #6b747d; margin-top: 6px; line-height: 1.5; }
+  .chkRow {
+    display: -webkit-flex; display: flex;
+    -webkit-align-items: center; align-items: center;
+    padding: 9px 0; font-size: 17px; border-bottom: 1px solid #232b34;
+  }
+  .chkRow input { width: 22px; height: 22px; margin-right: 12px; }
   .settingsFoot { margin-top: 28px; padding-bottom: 40px; }
   .twoCol { display: -webkit-flex; display: flex; }
   .twoCol > * { -webkit-flex: 1; flex: 1; }
@@ -140,7 +146,7 @@
 
 <div class="top">
   <div>
-    <div class="brand">Lucas Home</div>
+    <div class="brand" id="brandTxt">Lucas Home</div>
     <div id="clock">--:--</div>
     <div id="dateLine">Loading…</div>
   </div>
@@ -184,9 +190,15 @@
 <div id="settings">
   <h2>Settings</h2>
 
+  <h3>Dashboard name</h3>
+  <input type="text" id="titleInput" placeholder="Lucas Home">
+
   <h3>Google link (Apps Script URL)</h3>
   <input type="text" id="calUrlInput" placeholder="https://script.google.com/macros/s/…/exec">
   <div class="small">Calendar events and family notes both come through this link.</div>
+
+  <h3>Calendars to show</h3>
+  <div id="calChecks"><div class="small">The list will appear after the dashboard has loaded your Google link once.</div></div>
 
   <h3>Weather district</h3>
   <select id="districtSel"><option>Loading…</option></select>
@@ -232,7 +244,7 @@ function pad(n) { return n < 10 ? '0' + n : '' + n; }
 
 /* ---------- Config ---------- */
 function loadCfg() {
-  var cfg = { calUrl: '', district: '香港天文台', routes: [], countdowns: [] };
+  var cfg = { title: 'Lucas Home', calUrl: '', district: '香港天文台', routes: [], countdowns: [] };
   try {
     var raw = localStorage.getItem('dashCfg');
     if (raw) {
@@ -252,6 +264,11 @@ function saveCfg() {
   try { localStorage.setItem('dashCfg', JSON.stringify(CFG)); } catch (e) {}
 }
 var CFG = loadCfg();
+function applyTitle() {
+  var t = CFG.title || 'Lucas Home';
+  document.getElementById('brandTxt').textContent = t;
+  document.title = t;
+}
 
 /* ---------- Clock ---------- */
 var DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
@@ -375,6 +392,7 @@ function renderEvents(box, events) {
     box.appendChild(row);
   });
 }
+var lastCalList = [];
 function loadCal() {
   var todayBox = document.getElementById('todayList');
   var tmrBox = document.getElementById('tomorrowList');
@@ -390,6 +408,13 @@ function loadCal() {
     } else {
       events = data.events || [];
       notes = data.notes || [];
+      if (data.calendars && data.calendars.length) lastCalList = data.calendars;
+    }
+    /* show only the calendars the user ticked (empty/未設定 = show all) */
+    if (CFG.selCals && CFG.selCals.length) {
+      events = events.filter(function (e) {
+        return !e.cal || CFG.selCals.indexOf(e.cal) !== -1;
+      });
     }
     var now = new Date();
     var tmr = new Date(now.getTime() + 24 * 60 * 60 * 1000);
@@ -475,18 +500,22 @@ function etaMins(iso) {
   if (!iso) return null;
   return Math.round((new Date(iso).getTime() - Date.now()) / 60000);
 }
+function fmtClock(t) {
+  var d = new Date(t);
+  return pad(d.getHours()) + ':' + pad(d.getMinutes());
+}
 function fetchEtaKMB(rt) {
   return jget(KMB + '/eta/' + rt.stopId + '/' + rt.route + '/' + rt.serviceType)
     .then(function (d) {
       return (d.data || []).filter(function (x) { return x.dir === rt.dir && x.eta; })
-        .map(function (x) { return { m: etaMins(x.eta), op: 'KMB' }; });
+        .map(function (x) { return { m: etaMins(x.eta), t: new Date(x.eta).getTime(), op: 'KMB' }; });
     });
 }
 function fetchEtaCTB(rt) {
   return jget(CTB + '/eta/CTB/' + rt.stopId + '/' + rt.route)
     .then(function (d) {
       return (d.data || []).filter(function (x) { return x.dir === rt.dir && x.eta; })
-        .map(function (x) { return { m: etaMins(x.eta), op: 'CTB' }; });
+        .map(function (x) { return { m: etaMins(x.eta), t: new Date(x.eta).getTime(), op: 'CTB' }; });
     });
 }
 function fetchEtaGMB(rt) {
@@ -498,7 +527,13 @@ function fetchEtaGMB(rt) {
       var out = [];
       arr.forEach(function (entry) {
         (entry.eta || []).forEach(function (e) {
-          if (typeof e.diff === 'number') out.push({ m: e.diff, op: 'GMB' });
+          if (typeof e.diff === 'number') {
+            out.push({
+              m: e.diff,
+              t: e.timestamp ? new Date(e.timestamp).getTime() : Date.now() + e.diff * 60000,
+              op: 'GMB'
+            });
+          }
         });
       });
       return out;
@@ -544,11 +579,17 @@ function loadEta() {
         return;
       }
       var first = list[0];
-      var tag = (rt.type === 'JOINT') ? ' <span class="etaOp">' + first.op + '</span>' : '';
+      var mainExtra = [];
+      if (rt.type === 'JOINT') mainExtra.push(first.op);
+      if (first.t) mainExtra.push(fmtClock(first.t));
+      var tag = mainExtra.length ? ' <span class="etaOp">' + mainExtra.join(' · ') + '</span>' : '';
       mainEl.innerHTML = (first.m <= 0 ? 'Arriving' : first.m + ' min') + tag;
       var nexts = [];
       list.slice(1, 3).forEach(function (x) {
-        nexts.push((x.m <= 0 ? 'Due' : x.m + ' min') + (rt.type === 'JOINT' ? ' ' + x.op : ''));
+        var s = (x.m <= 0 ? 'Due' : x.m + 'm');
+        if (rt.type === 'JOINT') s += ' ' + x.op;
+        if (x.t) s += ' (' + fmtClock(x.t) + ')';
+        nexts.push(s);
       });
       nextEl.textContent = nexts.join(' · ');
     }).catch(function () {
@@ -559,16 +600,48 @@ function loadEta() {
 
 /* ---------- Settings: open / save ---------- */
 document.getElementById('gearBtn').onclick = function () {
+  document.getElementById('titleInput').value = CFG.title || 'Lucas Home';
   document.getElementById('calUrlInput').value = CFG.calUrl;
+  renderCalChecks();
   renderSavedRoutes();
   renderSavedCds();
   fillDistricts();
   document.getElementById('settings').style.display = 'block';
 };
+function renderCalChecks() {
+  var box = document.getElementById('calChecks');
+  if (!lastCalList.length) {
+    box.innerHTML = '<div class="small">The list will appear after the dashboard has loaded your Google link once.</div>';
+    return;
+  }
+  box.innerHTML = '';
+  lastCalList.forEach(function (name) {
+    var lab = document.createElement('label');
+    lab.className = 'chkRow';
+    var cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.value = name;
+    cb.checked = !CFG.selCals || !CFG.selCals.length || CFG.selCals.indexOf(name) !== -1;
+    lab.appendChild(cb);
+    lab.appendChild(document.createTextNode(name));
+    box.appendChild(lab);
+  });
+}
 document.getElementById('saveBtn').onclick = function () {
+  var tv = document.getElementById('titleInput').value.replace(/^\s+|\s+$/g, '');
+  CFG.title = tv || 'Lucas Home';
+  applyTitle();
   CFG.calUrl = document.getElementById('calUrlInput').value.replace(/\s/g, '');
   var sel = document.getElementById('districtSel');
   if (sel.value && sel.value !== 'Loading…') CFG.district = sel.value;
+  var checks = document.querySelectorAll('#calChecks input');
+  if (checks.length) {
+    var chosen = [];
+    for (var i = 0; i < checks.length; i++) {
+      if (checks[i].checked) chosen.push(checks[i].value);
+    }
+    CFG.selCals = chosen;
+  }
   saveCfg();
   document.getElementById('settings').style.display = 'none';
   document.getElementById('dirArea').innerHTML = '';
@@ -909,6 +982,7 @@ function finishAdd(route, dest) {
 }
 
 /* ---------- Timers ---------- */
+applyTitle();
 tickClock();
 loadWeather();
 loadCal();
